@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VUSCRIPT - Ultimate Group & Video Call Edition</title>
+
+    <!-- Thư viện Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <!-- Thư viện Chart.js để vẽ biểu đồ động -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: Arial, Helvetica, sans-serif; }
+
+        #mainScreen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; overflow: hidden; background: #000; z-index: 1; display: none;
+        }
+        #mainScreen img { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: fill; display: block; }
+
+        /* LOADING SCREEN */
+        #loadingScreen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #050509; display: flex; justify-content: center; align-items: center; z-index: 200; transition: opacity 0.8s ease; cursor: pointer;
+        }
+        .loadingContainer { position: relative; width: 260px; height: 300px; display: flex; justify-content: center; align-items: center; pointer-events: none; }
+        .loadingImage {
+            position: absolute; width: 130px; height: 130px; border-radius: 50%; object-fit: cover; border: 3px solid rgba(255, 255, 255, 0.85); box-shadow: 0 0 10px rgba(255,255,255,0.6), 0 0 25px rgba(255,80,150,0.35); z-index: 5; animation: imagePulse 2s ease-in-out infinite;
+        }
+        .orbitOne { position: absolute; width: 190px; height: 190px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.15); animation: rotateOne 2.5s linear infinite; }
+        .orbitTwo { position: absolute; width: 165px; height: 165px; border-radius: 50%; border: 2px solid rgba(255,70,150,0.25); animation: rotateTwo 3s linear infinite; }
+        .whiteDot { position: absolute; width: 10px; height: 10px; top: -5px; left: 50%; transform: translateX(-50%); border-radius: 50%; background: white; box-shadow: 0 0 8px white; }
+        .pinkDot { position: absolute; width: 8px; height: 8px; bottom: -4px; left: 50%; transform: translateX(-50%); border-radius: 50%; background: #ff4f9a; box-shadow: 0 0 10px #ff4f9a; }
+        .loadingText { position: absolute; top: 245px; width: 100%; text-align: center; color: rgba(255,255,255,0.78); font-size: 14px; letter-spacing: 2px; }
+
+        @keyframes rotateOne { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes rotateTwo { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+        @keyframes imagePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+
+        /* MÀN HÌNH ĐĂNG NHẬP */
+        #nameScreen {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.08); display: none; justify-content: center; align-items: center; z-index: 150; opacity: 0; transition: opacity 0.8s ease; backdrop-filter: blur(2px);
+        }
+        .nameBox { width: 390px; padding: 34px; text-align: center; background: rgba(10,10,15,0.85); border: 1px solid rgba(255,255,255,0.20); border-radius: 22px; box-shadow: 0 0 35px rgba(0,0,0,0.5); }
+        .nameTitle { color: #fff; font-size: 22px; font-weight: bold; margin-bottom: 8px; }
+        .nameDescription { color: rgba(255,255,255,0.7); font-size: 13px; margin-bottom: 18px; }
+        .inputField { width: 100%; height: 44px; padding: 0 16px; border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; outline: none; background: rgba(0,0,0,0.4); color: #fff; font-size: 14px; text-align: center; margin-bottom: 10px; }
+        #enterButton { width: 100%; height: 44px; border: none; border-radius: 12px; background: #ff4f9a; color: #fff; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 5px; }
+        #enterButton:hover { background: #ff2a85; }
+
+        /* GIAO DIỆN CHÍNH & MENU NÚT BẤM */
+        .robloxLauncher {
+            position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: 410px; display: none; flex-direction: column; gap: 8px; z-index: 20; opacity: 0; transition: opacity 0.8s ease;
+        }
+        .menuButtonRow { display: flex; gap: 4px; }
+        .menuBtn {
+            flex: 1; height: 40px; background: rgba(20, 20, 30, 0.85); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #fff; font-size: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 2px;
+        }
+        .menuBtn:hover { background: rgba(255,79,154,0.4); border-color: #ff4f9a; }
+        .robloxButton {
+            width: 100%; height: 44px; border: 1px solid rgba(255,255,255,0.25); border-radius: 12px; background: rgba(15, 15, 25, 0.8); color: white; font-size: 13px; font-weight: bold; cursor: pointer; transition: 0.25s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .robloxButton:hover { background: rgba(255,255,255,0.2); border-color: #ff4f9a; }
+        #btnRobloxVNG { background: linear-gradient(135deg, rgba(30,30,50,0.9), rgba(60,20,40,0.9)); }
+
+        /* CÁC MODAL THƯỜNG */
+        .modalBox {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); width: 430px; max-height: 90vh; background: rgba(15, 15, 22, 0.96); border: 1px solid rgba(255, 79, 154, 0.45); border-radius: 18px; padding: 16px; display: none; flex-direction: column; gap: 12px; z-index: 100; box-shadow: 0 10px 40px rgba(0,0,0,0.85); backdrop-filter: blur(14px); opacity: 0; transition: 0.3s ease;
+        }
+        .modalBox.active { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        .modalHeader { display: flex; justify-content: space-between; align-items: center; color: #fff; font-size: 15px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 8px; }
+        .closeModal { background: none; border: none; color: #ff4f9a; font-size: 18px; cursor: pointer; font-weight: bold; }
+
+        /* STYLING RIÊNG CHO SCRIPT HUB (ĐÃ PHÓNG TO NGANG BẰNG NÚT MỞ ROBLOX - 410PX) */
+        #scriptHubModal {
+            width: 410px !important;
+            border: 2px solid rgba(56, 189, 248, 0.6);
+            background: rgba(10, 15, 30, 0.98);
+        }
+        .scriptHubContainer { max-height: 440px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 2px; }
+        
+        /* PHẦN ĐẦU SCRIPT HUB SIÊU ĐẸP & RỘNG NGANG */
+        .script-hub-top-banner {
+            width: 100%;
+            background: linear-gradient(135deg, rgba(2, 132, 199, 0.3), rgba(147, 51, 234, 0.3));
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            border-radius: 12px;
+            padding: 14px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+        }
+        .script-hub-banner-title {
+            color: #38bdf8;
+            font-size: 16px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+        .script-hub-banner-desc {
+            color: #94a3b8;
+            font-size: 11px;
+        }
+
+        .game-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .game-btn { 
+            background: rgba(30, 41, 59, 0.8); 
+            color: white; 
+            border: 1px solid rgba(255,255,255,0.12); 
+            padding: 10px; 
+            border-radius: 10px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 11px; 
+            transition: 0.25s; 
+            text-align: center; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .game-btn:hover { background: rgba(2, 132, 199, 0.5); border-color: #38bdf8; transform: translateY(-2px); }
+        .game-btn.active { 
+            background: linear-gradient(135deg, #0284c7, #2563eb); 
+            border-color: #38bdf8; 
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4); 
+        }
+
+        .section-title { font-size: 12px; margin-top: 4px; color: #38bdf8; border-left: 3px solid #38bdf8; padding-left: 8px; font-weight: bold; letter-spacing: 0.5px; }
+        
+        .script-card { 
+            background: rgba(15, 23, 42, 0.9); 
+            border-radius: 10px; 
+            padding: 10px 12px; 
+            border: 1px solid rgba(56, 189, 248, 0.2); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            transition: 0.2s;
+        }
+        .script-card:hover { border-color: rgba(56, 189, 248, 0.6); }
+        .script-info { overflow: hidden; margin-right: 8px; }
+        .script-name { font-weight: bold; color: #38bdf8; font-size: 12px; margin-bottom: 3px; }
+        .script-code-text { font-family: monospace; color: #94a3b8; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 230px; background: rgba(0,0,0,0.4); padding: 3px 6px; border-radius: 4px; }
+        
+        .copy-btn { 
+            background: linear-gradient(135deg, #10b981, #059669); 
+            color: white; 
+            border: none; 
+            padding: 7px 12px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 11px; 
+            font-weight: bold; 
+            transition: 0.2s; 
+            white-space: nowrap; 
+            box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
+        }
+        .copy-btn:hover { background: linear-gradient(135deg, #059669, #047857); transform: scale(1.05); }
+
+        .contrib-box { 
+            margin-top: 4px; 
+            background: rgba(17, 24, 39, 0.95); 
+            padding: 12px; 
+            border-radius: 12px; 
+            border: 1px solid rgba(255,255,255,0.1); 
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px; 
+        }
+        .contrib-box h3 { font-size: 12px; color: #f3f4f6; margin-bottom: 2px; font-weight: bold; }
+        .input-field-hub { width: 100%; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.15); color: white; padding: 8px 10px; border-radius: 8px; font-size: 11px; outline: none; transition: 0.2s; }
+        .input-field-hub:focus { border-color: #38bdf8; box-shadow: 0 0 8px rgba(56, 189, 248, 0.3); }
+        textarea.input-field-hub { resize: vertical; height: 50px; font-family: monospace; }
+        
+        .submit-btn-hub { 
+            width: 100%; 
+            background: linear-gradient(135deg, #6366f1, #4f46e5); 
+            color: white; 
+            border: none; 
+            padding: 9px; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            font-size: 11px; 
+            transition: 0.2s; 
+            box-shadow: 0 3px 12px rgba(99, 102, 241, 0.4);
+        }
+        .submit-btn-hub:hover { background: linear-gradient(135deg, #4f46e5, #4338ca); transform: translateY(-1px); }
+
+        /* Danh sách bạn bè & Nút gọi riêng */
+        .friendListContainer { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+        .friendItem { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 8px; font-size: 13px; color: #fff; }
+        .friendActions { display: flex; gap: 6px; align-items: center; }
+        .callUserBtn { background: #22c55e; border: none; color: white; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; }
+        .callUserBtn:hover { background: #16a34a; }
+        .statusBadge { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot.online { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+        .dot.offline { background: #6b7280; }
+
+        /* Khung Chat Nhóm Chung */
+        .chatMessagesBox {
+            height: 220px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; text-align: left;
+        }
+        .msgRow { font-size: 12px; color: #e5e7eb; background: rgba(255,255,255,0.06); padding: 8px 12px; border-radius: 8px; word-break: break-word; line-height: 1.4; }
+        .msgRow b { color: #ff4f9a; }
+        .msgRow.ai-msg { background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); }
+        .msgRow.ai-msg b { color: #60a5fa; }
+
+        .chatInputRow { display: flex; gap: 6px; }
+        .chatInputRow input {
+            flex: 1; height: 38px; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 0 12px; color: #fff; font-size: 12px; outline: none;
+        }
+        .chatInputRow button {
+            width: 65px; height: 38px; background: #ff4f9a; border: none; border-radius: 8px; color: #fff; font-weight: bold; font-size: 12px; cursor: pointer; transition: 0.2s;
+        }
+        .chatInputRow button:hover { background: #ff2a85; }
+
+        /* KHO MUA THẺ & BIỂU ĐỒ CHI TIÊU */
+        .shopContainer { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+        .chartBox { background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px; position: relative; height: 180px; }
+        .orderFormBox { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .orderFormTitle { color: #34d399; font-size: 12px; font-weight: bold; }
+        .formRow { display: flex; gap: 6px; }
+        .formRow input, .formRow select {
+            flex: 1; height: 36px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #fff; padding: 0 10px; font-size: 12px; outline: none;
+        }
+        .submitOrderBtn { width: 100%; height: 36px; background: #34d399; border: none; border-radius: 8px; color: #000; font-weight: bold; font-size: 12px; cursor: pointer; transition: 0.2s; }
+        .submitOrderBtn:hover { background: #059669; color: #fff; }
+
+        /* KHU VỰC QUẢN TRỊ DUYỆT ĐƠN */
+        .adminSection { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .adminHeader { display: flex; justify-content: space-between; align-items: center; }
+        .adminTitle { color: #f87171; font-size: 12px; font-weight: bold; }
+        .pendingList { max-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+        .pendingCard { background: rgba(0,0,0,0.5); padding: 6px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #fff; }
+        .adminActions { display: flex; gap: 4px; }
+        .approveBtn { background: #22c55e; border: none; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 10px; }
+        .rejectBtn { background: #ef4444; border: none; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 10px; }
+
+        /* GỌI THOẠI & VIDEO CAMERA */
+        .callScreenBody { text-align: center; padding: 5px 0; display: flex; flex-direction: column; gap: 12px; align-items: center; color: #fff; }
+        .videoContainer {
+            width: 100%; height: 160px; background: #000; border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; overflow: hidden; position: relative; display: flex; justify-content: center; align-items: center;
+        }
+        #webcamVideo { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: none; }
+        .videoPlaceholder { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #9ca3af; font-size: 12px; }
+        .callAvatarPulse { width: 55px; height: 55px; border-radius: 50%; background: linear-gradient(135deg, #ff4f9a, #a855f7); display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 0 15px rgba(255,79,154,0.5); }
+        .callActionButtons { display: flex; gap: 8px; width: 100%; justify-content: center; }
+        .callBtn { padding: 8px 14px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; color: #fff; font-size: 12px; transition: 0.2s; }
+        .btnEndCall { background: #ef4444; }
+        .btnMute { background: #374151; }
+        .btnCam { background: #2563eb; }
+
+        /* POPUP THÔNG BÁO CUỘC GỌI ĐẾN */
+        #incomingModal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 300; backdrop-filter: blur(5px);
+        }
+        .incomingBox { width: 320px; background: rgba(20,20,30,0.95); border: 1px solid #ff4f9a; border-radius: 20px; padding: 24px; text-align: center; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 0 30px rgba(255,79,154,0.4); animation: popupBounce 0.4s ease; }
+        @keyframes popupBounce { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .incomingAvatar { width: 70px; height: 70px; border-radius: 50%; background: linear-gradient(135deg, #22c55e, #3b82f6); margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 30px; box-shadow: 0 0 20px rgba(34,197,94,0.6); animation: ringPulse 1.5s infinite; }
+        @keyframes ringPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        .incomingButtons { display: flex; gap: 12px; justify-content: center; }
+        .btnAccept { background: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .btnAccept:hover { background: #16a34a; }
+        .btnReject { background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .btnReject:hover { background: #dc2626; }
+
+        /* MODAL CUSTOM ĐẸP MẮT (THAY THẾ ALERT) */
+        #customModalBox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); justify-content: center; align-items: center; z-index: 500; backdrop-filter: blur(4px); }
+        .custom-modal-content { background: #1e293b; padding: 20px; border-radius: 14px; width: 90%; max-width: 320px; text-align: center; border: 1px solid #475569; box-shadow: 0 15px 30px rgba(0,0,0,0.5); animation: scaleUp 0.2s ease; }
+        @keyframes scaleUp { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .custom-modal-title { font-size: 16px; font-weight: bold; margin-bottom: 6px; color: #38bdf8; }
+        .custom-modal-msg { font-size: 13px; color: #cbd5e1; margin-bottom: 14px; line-height: 1.4; }
+        .custom-modal-ok { background: #0284c7; color: white; border: none; padding: 6px 18px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; }
+        .custom-modal-ok:hover { background: #0369a1; }
+
+        @media (max-width: 500px) {
+            .robloxLauncher { width: calc(100% - 20px); }
+            .modalBox { width: calc(100% - 20px); }
+            #scriptHubModal { width: calc(100% - 20px) !important; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="mainScreen"><img src="bg_animated.gif" alt=""></div>
+
+    <!-- MÀN HÌNH LOADING GỐC -->
+    <div id="loadingScreen">
+        <div class="loadingContainer">
+            <div class="orbitOne"><div class="whiteDot"></div></div>
+            <div class="orbitTwo"><div class="pinkDot"></div></div>
+            <img class="loadingImage" src="loading.jpg" alt="">
+            <div class="loadingText">ĐANG TẢI...</div>
+        </div>
+    </div>
+
+    <!-- MÀN HÌNH ĐĂNG NHẬP -->
+    <div id="nameScreen">
+        <div class="nameBox">
+            <div class="nameTitle">Bốm tải xog r nhập đi 🖕</div>
+            <div class="nameDescription">Nhập tên và mật khẩu để tham gia hệ thống 👇</div>
+            <input id="nameInput" class="inputField" type="text" placeholder="Tên hiển thị..." maxlength="30" autocomplete="off">
+            <input id="passInput" class="inputField" type="password" placeholder="Mật khẩu..." maxlength="30" autocomplete="off">
+            <button id="enterButton" onclick="handleAuth()">ENTER</button>
+        </div>
+    </div>
+
+    <!-- POPUP THÔNG BÁO CÓ CUỘC GỌI ĐẾN -->
+    <div id="incomingModal">
+        <div class="incomingBox">
+            <div class="incomingAvatar">📞</div>
+            <div>
+                <div style="font-size: 14px; color: #9ca3af;">Cuộc gọi đến từ</div>
+                <div id="callerNameText" style="font-size: 18px; font-weight: bold; color: #ff4f9a; margin-top: 4px;">Đại vương</div>
+            </div>
+            <div class="incomingButtons">
+                <button class="btnReject" onclick="rejectIncomingCall()">Từ chối</button>
+                <button class="btnAccept" onclick="acceptIncomingCall()">Nghe máy</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BẢNG QUẢN LÝ BẠN BÈ & GỌI RIÊNG -->
+    <div id="friendModal" class="modalBox">
+        <div class="modalHeader">
+            <span>👥 Danh sách bạn bè & Gọi thoại</span>
+            <button class="closeModal" onclick="closeModal('friendModal')">×</button>
+        </div>
+        <div class="friendListContainer" id="friendListContainer"></div>
+    </div>
+
+    <!-- BẢNG CHÁT NHÓM CHUNG (TÍCH HỢP AI NGẦM) -->
+    <div id="chatModal" class="modalBox">
+        <div class="modalHeader">
+            <span>💬 Chat Nhóm Chung (AI ngầm)</span>
+            <button class="closeModal" onclick="closeModal('chatModal')">×</button>
+        </div>
+        <div class="chatMessagesBox" id="modalChatList"></div>
+        <div class="chatInputRow">
+            <input type="text" id="modalChatInput" placeholder="Nhập tin nhắn (gõ 'ê AI' để gọi AI)..." onkeypress="checkModalEnter(event)">
+            <button onclick="sendModalChat()">Gửi</button>
+        </div>
+    </div>
+
+    <!-- BẢNG SCRIPT HUB (ĐÃ PHÓNG TO BANNER ĐẦU RỘNG NGANG 410PX CỰC ĐẸP) -->
+    <div id="scriptHubModal" class="modalBox">
+        <div class="modalHeader">
+            <span>⚡ VIP Script Hub Đỉnh Cao</span>
+            <button class="closeModal" onclick="closeModal('scriptHubModal')">×</button>
+        </div>
+        <div class="scriptHubContainer">
+            <!-- BANNER PHẦN ĐẦU SIÊU BỰ NGANG BẰNG NÚT MỞ ROBLOX -->
+            <div class="script-hub-top-banner">
+                <div class="script-hub-banner-title">⚡ VUSCRIPT HUB ⚡</div>
+                <div class="script-hub-banner-desc">Chọn tựa game yêu thích và nhận mã loadstring tối ưu nhất!</div>
+            </div>
+
+            <!-- Danh sách Game -->
+            <div class="game-list">
+                <button class="game-btn active" onclick="selectGame('Blox Fruit', this)">🏴‍☠️ Blox Fruit</button>
+                <button class="game-btn" onclick="selectGame('The Strongest Battlegrounds', this)">⚔️ The Strongest TSB</button>
+                <button class="game-btn" onclick="selectGame('99 Nights in the Forest', this)">🌲 99 Nights in Forest</button>
+                <button class="game-btn" onclick="selectGame('Game Khác', this)">🎮 Game Khác</button>
+            </div>
+
+            <div class="section-title" id="currentCategory">Danh sách Script: Blox Fruit</div>
+            
+            <!-- Khung chứa danh sách script -->
+            <div id="scriptContainer"></div>
+
+            <!-- Khung gửi script đóng góp -->
+            <div class="contrib-box">
+                <h3>➕ Đóng góp Script của bạn</h3>
+                <input type="text" id="contribName" class="input-field-hub" placeholder="Tên script hoặc ghi chú (VD: Auto Farm VIP)...">
+                <textarea id="contribCode" class="input-field-hub" placeholder="Dán mã loadstring(...) vào đây..."></textarea>
+                <button class="submit-btn-hub" onclick="submitScript()">Gửi Script Lên Hub</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BẢNG GỌI THOẠI & VIDEO CAMERA -->
+    <div id="callModal" class="modalBox">
+        <div class="modalHeader">
+            <span>📞 Phòng gọi & Video Call</span>
+            <button class="closeModal" onclick="endCall()">×</button>
+        </div>
+        <div class="callScreenBody">
+            <div class="videoContainer">
+                <video id="webcamVideo" autoplay playsinline muted></video>
+                <div class="videoPlaceholder" id="videoPlaceholder">
+                    <div class="callAvatarPulse">🎙️</div>
+                    <span id="callStatusText">Đang kết nối vào phòng thoại...</span>
+                </div>
+            </div>
+            <div class="callActionButtons">
+                <button class="callBtn btnMute" onclick="toggleMute()" id="muteBtn">Tắt Mic</button>
+                <button class="callBtn btnCam" onclick="toggleCamera()" id="camBtn">Bật Cam</button>
+                <button class="callBtn btnEndCall" onclick="endCall()">Rời Cuộc Gọi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- KHO MUA THẺ & BIỂU ĐỒ CHI TIÊU ROBLOX -->
+    <div id="shopModal" class="modalBox">
+        <div class="modalHeader">
+            <span>💳 Kho Mua Thẻ & Biểu Đồ Chi Tiêu</span>
+            <button class="closeModal" onclick="closeModal('shopModal')">×</button>
+        </div>
+        <div class="shopContainer">
+            <!-- BIỂU ĐỒ ĐỘNG -->
+            <div class="chartBox">
+                <canvas id="spendingChart"></canvas>
+            </div>
+
+            <!-- TẠO ĐƠN MUA THẺ / NẠP TIỀN -->
+            <div class="orderFormBox">
+                <div class="orderFormTitle">📦 Tạo Đơn Mua Thẻ Mới</div>
+                <div class="formRow">
+                    <input type="text" id="orderTimeInput" placeholder="Thời gian cần mua (VD: Tuần 1 - Tháng 8)...">
+                </div>
+                <div class="formRow">
+                    <input type="number" id="orderAmountInput" placeholder="Số tiền chi tiêu (VNĐ)...">
+                    <button class="submitOrderBtn" onclick="submitOrder()">Gửi Đơn Duyệt</button>
+                </div>
+            </div>
+
+            <!-- KHU VỰC QUẢN TRỊ VIÊN -->
+            <div class="adminSection">
+                <div class="adminHeader">
+                    <span class="adminTitle">🔒 Quyền Quản Trị Viên</span>
+                    <div id="adminLoginArea" style="display:flex; gap:4px;">
+                        <input type="password" id="adminPassInput" placeholder="Nhập mk quản trị..." style="height:26px; font-size:11px; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.2); border-radius:4px; color:#fff; padding:0 6px; outline:none;">
+                        <button onclick="verifyAdmin()" style="background:#ef4444; border:none; color:#fff; font-size:10px; font-weight:bold; padding:0 8px; border-radius:4px; cursor:pointer;">Vào</button>
+                    </div>
+                </div>
+                <div id="adminPanelContent" style="display:none; flex-direction:column; gap:6px;">
+                    <div style="font-size: 11px; color: #34d399; font-weight: bold;">Danh sách đơn chờ duyệt:</div>
+                    <div class="pendingList" id="pendingListContainer">
+                        <div style="font-size:11px; color:#888; text-align:center;">Chưa có đơn nào chờ duyệt</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HỘP THOẠI THÔNG BÁO TÙY CHỈNH (MODAL ĐẸP MẮT) -->
+    <div id="customModalBox">
+        <div class="custom-modal-content">
+            <div class="custom-modal-title" id="customModalTitle">Thông báo</div>
+            <div class="custom-modal-msg" id="customModalMsg">Nội dung thông báo ở đây</div>
+            <button class="custom-modal-ok" onclick="closeCustomModal()">Đóng</button>
+        </div>
+    </div>
+
+    <!-- GIAO DIỆN CHÍNH (5 NÚT MENU NGANG) -->
+    <div class="robloxLauncher" id="robloxLauncher">
+        <div class="menuButtonRow">
+            <button class="menuBtn" onclick="openModal('friendModal')">👥 Bạn Bè</button>
+            <button class="menuBtn" onclick="openModal('chatModal')" style="border-color: #ff4f9a; color: #ff4f9a;">💬 Chat Nhóm</button>
+            <button class="menuBtn" onclick="openModal('scriptHubModal')" style="border-color: #38bdf8; color: #38bdf8;">⚡ Script Hub</button>
+            <button class="menuBtn" onclick="openModal('callModal')">📞 Gọi</button>
+            <button class="menuBtn" onclick="openModal('shopModal')" style="border-color: #34d399; color: #34d399;">💳 Mua Thẻ</button>
+        </div>
+        <button class="robloxButton" id="btnRobloxVNG" onclick="openRobloxVNG()">👑 MỞ ROBLOX VNG</button>
+        <button class="robloxButton" onclick="openRobloxGlobal()">🌐 MỞ ROBLOX QUỐC TẾ</button>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            databaseURL: "https://vusco-c649e-default-rtdb.firebaseio.com"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let currentUser = localStorage.getItem("vuscript_name");
+        
+        let aiActive = false;
+        let chatHistoryForAI = [];
+
+        let currentCallTarget = null;
+        let activeCallId = null;
+        let mediaStream = null;
+        let isMuted = false;
+        let isCamOn = false;
+
+        let spendingChartInstance = null;
+
+        const loadingScreen = document.getElementById("loadingScreen");
+        const nameScreen = document.getElementById("nameScreen");
+        const mainScreen = document.getElementById("mainScreen");
+        const nameInput = document.getElementById("nameInput");
+        const passInput = document.getElementById("passInput");
+
+        let scriptData = {
+            "Blox Fruit": [
+                { name: "Redz Hub (Auto Farm, Boss)", code: "loadstring(game:HttpGet('https://raw.githubusercontent.com/REDzHUB/BloxFruits/main/redz999.lua'))()" },
+                { name: "Zenith Hub V3", code: "loadstring(game:HttpGet('https://raw.githubusercontent.com/zenith-hub/roblox/main/blox-fruits.lua'))()" }
+            ],
+            "The Strongest Battlegrounds": [
+                { name: "TSB Script - Kill Aura & Gui", code: "loadstring(game:HttpGet('https://raw.githubusercontent.com/UnknownScript/tsb/main/gui.lua'))()" }
+            ],
+            "99 Nights in the Forest": [
+                { name: "99 Nights Auto Survival", code: "loadstring(game:HttpGet('https://raw.githubusercontent.com/ForestScript/main/survival.lua'))()" }
+            ],
+            "Game Khác": [
+                { name: "Universal Fly & Noclip", code: "loadstring(game:HttpGet('https://pastebin.com/raw/universal_fly_example'))()" }
+            ]
+        };
+        let activeGame = "Blox Fruit";
+
+        function showCustomAlert(title, message) {
+            document.getElementById('customModalTitle').innerText = title;
+            document.getElementById('customModalMsg').innerText = message;
+            document.getElementById('customModalBox').style.display = 'flex';
+        }
+
+        function closeCustomModal() {
+            document.getElementById('customModalBox').style.display = 'none';
+        }
+
+        setTimeout(function() {
+            mainScreen.style.display = "block";
+            loadingScreen.style.opacity = "0";
+
+            setTimeout(function() {
+                loadingScreen.style.display = "none";
+                if (currentUser) {
+                    db.ref("users/" + currentUser).update({ status: "Online" });
+                    showLauncherScreen(currentUser);
+                } else {
+                    nameScreen.style.display = "flex";
+                    setTimeout(() => { nameScreen.style.opacity = "1"; nameInput.focus(); }, 50);
+                }
+            }, 800);
+        }, 3000);
+
+        function handleAuth() {
+            const user = nameInput.value.trim();
+            const pass = passInput.value.trim();
+            if (!user || !pass) {
+                showCustomAlert("Thiếu thông tin", "Nhập đủ tên và mật khẩu đi ông tướng!");
+                return;
+            }
+
+            db.ref("users/" + user).get().then((snapshot) => {
+                if (snapshot.exists()) {
+                    if (snapshot.val().password === pass) {
+                        loginSuccess(user);
+                    } else {
+                        showCustomAlert("Sai mật khẩu", "Sai mật khẩu rồi!");
+                    }
+                } else {
+                    db.ref("users/" + user).set({ password: pass, status: "Online" });
+                    loginSuccess(user);
+                }
+            });
+        }
+
+        function loginSuccess(user) {
+            localStorage.setItem("vuscript_name", user);
+            currentUser = user;
+            db.ref("users/" + user).update({ status: "Online" });
+
+            nameScreen.style.opacity = "0";
+            setTimeout(() => {
+                nameScreen.style.display = "none";
+                showLauncherScreen(user);
+            }, 800);
+        }
+
+        function showLauncherScreen(user) {
+            const launcher = document.getElementById("robloxLauncher");
+            launcher.style.display = "flex";
+            setTimeout(() => { launcher.style.opacity = "1"; }, 50);
+
+            initRealtimeListeners();
+            initSpendingChart();
+            renderScripts();
+        }
+
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.style.display = "flex";
+            setTimeout(() => modal.classList.add("active"), 10);
+            if(modalId === 'shopModal' && spendingChartInstance) {
+                setTimeout(() => spendingChartInstance.update(), 200);
+            }
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove("active");
+            setTimeout(() => modal.style.display = "none", 300);
+        }
+
+        function selectGame(gameName, btnElement) {
+            activeGame = gameName;
+            document.getElementById('currentCategory').innerText = "Danh sách Script: " + gameName;
+            
+            let buttons = document.querySelectorAll('.game-btn');
+            buttons.forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+
+            renderScripts();
+        }
+
+        function renderScripts() {
+            let container = document.getElementById('scriptContainer');
+            if(!container) return;
+            container.innerHTML = "";
+
+            let list = scriptData[activeGame] || [];
+            if(list.length === 0) {
+                container.innerHTML = `<p style="color: #64748b; text-align: center; font-size: 12px; padding: 10px;">Chưa có script nào trong mục này.</p>`;
+                return;
+            }
+
+            list.forEach((item) => {
+                let card = document.createElement('div');
+                card.className = 'script-card';
+                card.innerHTML = `
+                    <div class="script-info">
+                        <div class="script-name">${item.name}</div>
+                        <div class="script-code-text">${item.code}</div>
+                    </div>
+                    <button class="copy-btn" onclick="copyCode('${encodeURIComponent(item.code)}')">Sao chép</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function copyCode(encodedCode) {
+            let code = decodeURIComponent(encodedCode);
+            navigator.clipboard.writeText(code).then(() => {
+                showCustomAlert("Thành công!", "Đã sao chép mã loadstring vào bộ nhớ tạm!");
+            }).catch(() => {
+                showCustomAlert("Lỗi", "Không thể sao chép code.");
+            });
+        }
+
+        function submitScript() {
+            let nameInputVal = document.getElementById('contribName').value.trim();
+            let codeInputVal = document.getElementById('contribCode').value.trim();
+
+            if(!codeInputVal) {
+                showCustomAlert("Thiếu thông tin", "Vui lòng nhập đoạn mã script!");
+                return;
+            }
+
+            if(!codeInputVal.toLowerCase().includes("loadstring")) {
+                showCustomAlert("Từ chối!", "Tin nhắn rác! Script bắt buộc phải có chứa dạng 'loadstring(...)'.");
+                return;
+            }
+
+            if(!nameInputVal) {
+                nameInputVal = "Script đóng góp mới";
+            }
+
+            if(!scriptData[activeGame]) {
+                scriptData[activeGame] = [];
+            }
+
+            scriptData[activeGame].push({
+                name: nameInputVal,
+                code: codeInputVal
+            });
+
+            document.getElementById('contribName').value = "";
+            document.getElementById('contribCode').value = "";
+
+            renderScripts();
+            showCustomAlert("Thành công!", "Script của bạn đã được thêm trực tiếp vào danh sách!");
+        }
+
+        function initSpendingChart() {
+            const ctx = document.getElementById('spendingChart').getContext('2d');
+            spendingChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4'],
+                    datasets: [{
+                        label: 'Số tiền chi tiêu Roblox (VNĐ)',
+                        data: [0, 0, 0, 0],
+                        borderColor: '#34d399',
+                        backgroundColor: 'rgba(52, 211, 153, 0.15)',
+                        borderWidth: 2.5,
+                        fill: true,
+                        tension: 0.35,
+                        pointBackgroundColor: '#ff4f9a',
+                        pointBorderColor: '#fff',
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#fff', font: { size: 10 } } }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.06)' } },
+                        y: { ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.06)' } }
+                    }
+                }
+            });
+
+            db.ref("spending_weeks").on("value", (snapshot) => {
+                if(snapshot.exists()) {
+                    let weeksData = snapshot.val();
+                    let labels = Object.keys(weeksData);
+                    let dataValues = Object.values(weeksData).map(v => v.amount);
+                    
+                    spendingChartInstance.data.labels = labels;
+                    spendingChartInstance.data.datasets[0].data = dataValues;
+                    spendingChartInstance.update();
+                }
+            });
+        }
+
+        function submitOrder() {
+            const timeVal = document.getElementById("orderTimeInput").value.trim();
+            const amountVal = parseFloat(document.getElementById("orderAmountInput").value);
+
+            if (!timeVal || isNaN(amountVal)) {
+                showCustomAlert("Thiếu thông tin", "Đại vương vui lòng nhập đầy đủ thời gian và số tiền chi tiêu!");
+                return;
+            }
+
+            db.ref("orders").push({
+                user: currentUser,
+                time: timeVal,
+                amount: amountVal,
+                timestamp: Date.now()
+            });
+
+            showCustomAlert("Đã gửi đơn", "Đã gửi đơn thành công! Đang đợi Quản trị viên duyệt...");
+            document.getElementById("orderTimeInput").value = "";
+            document.getElementById("orderAmountInput").value = "";
+        }
+
+        function verifyAdmin() {
+            const pass = document.getElementById("adminPassInput").value;
+            if (pass === "vu654321*") {
+                document.getElementById("adminLoginArea").style.display = "none";
+                document.getElementById("adminPanelContent").style.display = "flex";
+                showCustomAlert("Thành công", "Đăng nhập quyền Quản trị viên thành công!");
+                listenPendingOrders();
+            } else {
+                showCustomAlert("Sai mật khẩu", "Sai mật khẩu quản trị viên rồi đại vương ơi!");
+            }
+        }
+
+        function listenPendingOrders() {
+            db.ref("orders").on("value", (snapshot) => {
+                const container = document.getElementById("pendingListContainer");
+                container.innerHTML = "";
+                if(!snapshot.exists()) {
+                    container.innerHTML = `<div style="font-size:11px; color:#888; text-align:center;">Chưa có đơn nào chờ duyệt</div>`;
+                    return;
+                }
+                snapshot.forEach((childSnapshot) => {
+                    const orderId = childSnapshot.key;
+                    const order = childSnapshot.val();
+                    const card = document.createElement("div");
+                    card.className = "pendingCard";
+                    card.innerHTML = `
+                        <div><b>${order.user}</b>: ${order.time} - <b>${order.amount.toLocaleString()} VNĐ</b></div>
+                        <div class="adminActions">
+                            <button class="approveBtn" onclick="approveOrder('${orderId}', '${order.time}', ${order.amount})">Duyệt</button>
+                            <button class="rejectBtn" onclick="rejectOrder('${orderId}')">Hủy</button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            });
+        }
+
+        function approveOrder(orderId, timeText, amountVal) {
+            db.ref("spending_weeks/" + timeText).set({
+                amount: amountVal
+            }).then(() => {
+                db.ref("orders/" + orderId).remove();
+                showCustomAlert("Đã duyệt", "Đã duyệt đơn thành công! Số liệu đã được cập nhật lên biểu đồ.");
+            });
+        }
+
+        function rejectOrder(orderId) {
+            db.ref("orders/" + orderId).remove();
+            showCustomAlert("Đã hủy", "Đã từ chối đơn hàng.");
+        }
+
+        function initRealtimeListeners() {
+            db.ref("users").on("value", (snapshot) => {
+                const listContainer = document.getElementById("friendListContainer");
+                listContainer.innerHTML = "";
+                snapshot.forEach((childSnapshot) => {
+                    const username = childSnapshot.key;
+                    if (username === currentUser) return;
+                    const userData = childSnapshot.val();
+                    const isOnline = userData.status === "Online";
+
+                    const div = document.createElement("div");
+                    div.className = "friendItem";
+                    div.innerHTML = `
+                        <span>👤 ${username}</span>
+                        <div class="friendActions">
+                            <div class="statusBadge">
+                                <span class="dot ${isOnline ? 'online' : 'offline'}"></span>
+                                <span style="color: ${isOnline ? '#22c55e' : '#9ca3af'};">${userData.status || 'Offline'}</span>
+                            </div>
+                            <button class="callUserBtn" onclick="startCallUser('${username}')">📞 Gọi</button>
+                        </div>
+                    `;
+                    listContainer.appendChild(div);
+                });
+            });
+
+            db.ref("calls/" + currentUser).on("value", (snapshot) => {
+                const callData = snapshot.val();
+                const incomingModal = document.getElementById("incomingModal");
+
+                if (callData && callData.status === "ringing") {
+                    currentCallTarget = callData.caller;
+                    activeCallId = callData.callId;
+                    document.getElementById("callerNameText").innerText = currentCallTarget;
+                    incomingModal.style.display = "flex";
+                } else if (!callData || callData.status === "ended") {
+                    incomingModal.style.display = "none";
+                }
+            });
+
+            const chatList = document.getElementById("modalChatList");
+            db.ref("messages").limitToLast(40).on("child_added", (snapshot) => {
+                const data = snapshot.val();
+                
+                chatHistoryForAI.push({ role: "user", content: `${data.sender}: ${data.text}` });
+                if(chatHistoryForAI.length > 25) chatHistoryForAI.shift();
+
+                const div = document.createElement("div");
+                if (data.sender === "🤖 Trợ Lý AI") {
+                    div.className = "msgRow ai-msg";
+                    div.innerHTML = `<b>${data.sender}:</b> ${data.text}`;
+                } else {
+                    div.className = "msgRow";
+                    div.innerHTML = `<b>${data.sender}:</b> ${data.text}`;
+                }
+                chatList.appendChild(div);
+                chatList.scrollTop = chatList.scrollHeight;
+
+                if (data.text === "thôi mày im được rồi") {
+                    aiActive = false;
+                    return;
+                }
+
+                if (data.text === "ê AI") {
+                    aiActive = true;
+                    triggerAIResponse("Mọi người vừa gọi bạn lên tham gia trò chuyện chung.");
+                } else if (aiActive && data.sender !== "🤖 Trợ Lý AI") {
+                    triggerAIResponse(data.text);
+                }
+            });
+        }
+
+        function startCallUser(targetUser) {
+            const callId = "call_" + Date.now();
+            activeCallId = callId;
+            currentCallTarget = targetUser;
+
+            db.ref("calls/" + targetUser).set({
+                caller: currentUser,
+                callId: callId,
+                status: "ringing"
+            });
+
+            openModal('callModal');
+            document.getElementById("callStatusText").innerText = `Đang gọi cho ${targetUser} (${targetUser} chưa bắt máy)...`;
+        }
+
+        function acceptIncomingCall() {
+            document.getElementById("incomingModal").style.display = "none";
+
+            db.ref("calls/" + currentUser).update({ status: "connected" });
+            
+            openModal('callModal');
+            document.getElementById("callStatusText").innerText = `Đã kết nối với ${currentCallTarget}!`;
+        }
+
+        function rejectIncomingCall() {
+            document.getElementById("incomingModal").style.display = "none";
+            db.ref("calls/" + currentUser).remove();
+        }
+
+        function endCall() {
+            closeModal('callModal');
+            document.getElementById("incomingModal").style.display = "none";
+
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            isCamOn = false;
+            document.getElementById("webcamVideo").style.display = "none";
+            document.getElementById("videoPlaceholder").style.display = "flex";
+            document.getElementById("camBtn").innerText = "Bật Cam";
+
+            if (currentCallTarget) {
+                db.ref("calls/" + currentCallTarget).remove();
+            }
+            db.ref("calls/" + currentUser).remove();
+            currentCallTarget = null;
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            const btn = document.getElementById("muteBtn");
+            const statusText = document.getElementById("callStatusText");
+            if (mediaStream) {
+                mediaStream.getAudioTracks().forEach(track => track.enabled = !isMuted);
+            }
+            if (isMuted) {
+                btn.innerText = "Bật Mic"; btn.style.background = "#22c55e"; statusText.innerText = "Bạn đã tắt mic";
+            } else {
+                btn.innerText = "Tắt Mic"; btn.style.background = "#374151"; statusText.innerText = "Đang kết nối...";
+            }
+        }
+
+        async function toggleCamera() {
+            isCamOn = !isCamOn;
+            const camBtn = document.getElementById("camBtn");
+            const videoElem = document.getElementById("webcamVideo");
+            const placeholder = document.getElementById("videoPlaceholder");
+
+            if (isCamOn) {
+                try {
+                    mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    videoElem.srcObject = mediaStream;
+                    videoElem.style.display = "block";
+                    placeholder.style.display = "none";
+                    camBtn.innerText = "Tắt Cam";
+                    camBtn.style.background = "#ef4444";
+                } catch (err) {
+                    showCustomAlert("Lỗi Camera", "Không thể mở camera (Hãy cấp quyền camera cho trình duyệt)");
+                    isCamOn = false;
+                }
+            } else {
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    mediaStream = null;
+                }
+                videoElem.style.display = "none";
+                placeholder.style.display = "flex";
+                camBtn.innerText = "Bật Cam";
+                camBtn.style.background = "#2563eb";
+            }
+        }
+
+        function sendModalChat() {
+            const input = document.getElementById("modalChatInput");
+            const text = input.value.trim();
+            if (!text) return;
+
+            db.ref("messages").push({
+                sender: currentUser,
+                text: text,
+                time: Date.now()
+            });
+            input.value = "";
+        }
+
+        function checkModalEnter(e) {
+            if (e.key === "Enter") sendModalChat();
+        }
+
+        const GROQ_API_KEY = "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";
+
+        async function triggerAIResponse(latestMessage) {
+            try {
+                const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${GROQ_API_KEY}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: "llama-3.3-70b-versatile",
+                        messages: [
+                            { 
+                                role: "system", 
+                                content: "Bạn là một thành viên AI tham gia chung trong nhóm chat với bạn bè. Bạn đang âm thầm theo dõi cuộc trò chuyện. Hãy nói chuyện tự nhiên, ngắn gọn, thân thiện như một người bạn thực thụ trong nhóm. Chỉ phản hồi khi được gọi hoặc khi thấy phù hợp." 
+                            },
+                            ...chatHistoryForAI,
+                            { role: "user", content: latestMessage }
+                        ]
+                    })
+                });
+
+                const data = await response.json();
+                const reply = data.choices && data.choices[0] ? data.choices[0].message.content : "Ừm, mình nghe đây!";
+                
+                db.ref("messages").push({
+                    sender: "🤖 Trợ Lý AI",
+                    text: reply,
+                    time: Date.now()
+                });
+
+            } catch (error) {
+                console.log("AI error");
+            }
+        }
+
+        window.addEventListener("beforeunload", () => {
+            if (currentUser) {
+                db.ref("users/" + currentUser).update({ status: "Offline" });
+                db.ref("calls/" + currentUser).remove();
+            }
+        });
+
+        let openRobloxGlobal = () => { window.location.href = "roblox://"; }
+        let openRobloxVNG = () => { window.location.href = "intent://#Intent;package=com.roblox.client.vnggames;scheme=roblox;end"; }
+    </script>
+</body>
+</html>
+```[cite: 2]
